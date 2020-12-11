@@ -23,7 +23,7 @@ struct oss_stat {
   int page_faults;
 };
 
-static int noofprocesses = 0, nmax = 100; 
+static int nop = 0, nmax = 100; 
 static int s = 0, smax = SMAX;
 static int e = 0, emax = 0;   
 static int tmax = 2;   
@@ -189,10 +189,10 @@ static int exec_user(){
     default:
       //save process pid
       printf("Master: Started P%d at time %ld:%ld\n",
-        noofprocesses, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
+        nop, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
       ptr->user_proc[user_index].pid = pid;
-      ptr->user_proc[user_index].id  = noofprocesses;
+      ptr->user_proc[user_index].id  = nop;
       break;
   }
 
@@ -202,11 +202,11 @@ static int exec_user(){
 static int setup_args(const int argc, char * const argv[]){
 
   int option;
-	while((option = getopt(argc, argv, "noofprocesses:s:t:h:m:v")) != -1){
+	while((option = getopt(argc, argv, "nop:s:t:h:m:v")) != -1){
 		switch(option){
 			case 'h':
         fprintf(stderr, "Usage: master [-n x] [-s x] [-t x] infile.txt\n");
-        fprintf(stderr, "-noofprocesses 100 Processes to start\n");
+        fprintf(stderr, "-nop 100 Processes to start\n");
         fprintf(stderr, "-s 18 Processes to rununing\n");
         fprintf(stderr, "-t 2 Runtime\n");
         fprintf(stderr, "-m 0|1 Memory address request scheme\n");
@@ -214,7 +214,7 @@ static int setup_args(const int argc, char * const argv[]){
         fprintf(stderr, "-h Show this message\n");
 				return -1;
 
-      case 'noofprocesses':  nmax	= atoi(optarg); break;
+      case 'nop':  nmax	= atoi(optarg); break;
 			case 's':  smax	= atoi(optarg); break;
       case 't':  tmax	= atoi(optarg); break;
       case 'm':  user_mx = atoi(optarg); break;
@@ -689,10 +689,10 @@ int main(const int argc, char * const argv[]){
 	while(loop_flag && (e < emax)){
 
     //if we can, we start a new process
-    if( (noofprocesses < nmax) && (s < smax)  ){
+    if( (nop < nmax) && (s < smax)  ){
       const pid_t user_pid = exec_user();
       if(user_pid > 0){
-        ++noofprocesses; ++s;  /* increase count of processes started */
+        ++nop; ++s;  /* increase count of processes started */
       }
     }
 
