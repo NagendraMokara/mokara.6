@@ -19,15 +19,14 @@
 struct oss_stat {
   int reads;
   int writes;
-
   int evicted;
   int page_faults;
 };
 
-static int n = 0, nmax = 100;  //processes
-static int s = 0, smax = SMAX;  //running processes
-static int e = 0, emax = 0;   //exited processes
-static int        tmax = 2;   //runtime
+static int noofprocesses = 0, nmax = 100; 
+static int s = 0, smax = SMAX;
+static int e = 0, emax = 0;   
+static int tmax = 2;   
 static int v = 0; //verbose
 
 static struct oss_stat ostat; //oss statistics
@@ -189,11 +188,11 @@ static int exec_user(){
 
     default:
       //save process pid
-      printf("OSS: Started P%d at time %ld:%ld\n",
+      printf("Master: Started P%d at time %ld:%ld\n",
         n, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
       ptr->user_proc[user_index].pid = pid;
-      ptr->user_proc[user_index].id  = n;
+      ptr->user_proc[user_index].id  = noofprocesses;
       break;
   }
 
@@ -203,11 +202,11 @@ static int exec_user(){
 static int setup_args(const int argc, char * const argv[]){
 
   int option;
-	while((option = getopt(argc, argv, "n:s:t:h:m:v")) != -1){
+	while((option = getopt(argc, argv, "noofprocesses:s:t:h:m:v")) != -1){
 		switch(option){
 			case 'h':
         fprintf(stderr, "Usage: master [-n x] [-s x] [-t x] infile.txt\n");
-        fprintf(stderr, "-n 100 Processes to start\n");
+        fprintf(stderr, "-noofprocesses 100 Processes to start\n");
         fprintf(stderr, "-s 18 Processes to rununing\n");
         fprintf(stderr, "-t 2 Runtime\n");
         fprintf(stderr, "-m 0|1 Memory address request scheme\n");
@@ -215,14 +214,14 @@ static int setup_args(const int argc, char * const argv[]){
         fprintf(stderr, "-h Show this message\n");
 				return -1;
 
-      case 'n':  nmax	= atoi(optarg); break;
+      case 'noofprocesses':  nmax	= atoi(optarg); break;
 			case 's':  smax	= atoi(optarg); break;
       case 't':  tmax	= atoi(optarg); break;
       case 'm':  user_mx = atoi(optarg); break;
       case 'v':  v = 1;               break;
 
       default:
-				fprintf(stderr, "OSS: Error: Invalid option %c\n", option);
+				fprintf(stderr, "Master: Error: Invalid option %c\n", option);
 				return -1;
 		}
 	}
@@ -363,7 +362,7 @@ static int unblock_requests(){
     //if memory page is loaded
     if( timercmp(&ptr->shared_clock, &usr->loadt, >) ){ //if page load time has passed
 
-      printf("OSS P%d address %d loaded at system time %lu:%li\n",
+      printf("Master P%d address %d loaded at system time %lu:%li\n",
         usr->id, m->val, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
       //unblock the waiting user
@@ -420,7 +419,7 @@ static int page_fault(struct oss_user * usr, struct request_message * m){
   }
 
   if(f >= 0){
-		printf("OSS using free frame %d for P%d page %d at system time %lu:%li\n",
+		printf("Master using free frame %d for P%d page %d at system time %lu:%li\n",
       f, usr->id, pidx, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
   }else{	//no frame is free
@@ -431,12 +430,12 @@ static int page_fault(struct oss_user * usr, struct request_message * m){
 	  struct frame * fr = &ptr->frame_table[f];
 	  struct page * vp = &ptr->user_proc[fr->user].page_table[fr->page];
 
-	  printf("OSS evicting page %d of P%d at system time %li:%lu\n",
+	  printf("Master evicting page %d of P%d at system time %li:%lu\n",
 	      fr->page, fr->user, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
 	  vp->bits = 0;
 
-	  printf("OSS clearing frame %d and swapping in P%d page %d at system time %li:%lu\n",
+	  printf("Master clearing frame %d and swapping in P%d page %d at system time %li:%lu\n",
 	    vp->frame, usr->id, pidx, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
 		if(fr->bits & DIRTY){
@@ -444,7 +443,7 @@ static int page_fault(struct oss_user * usr, struct request_message * m){
       tv.tv_sec = 0; tv.tv_usec = 14;
       timeradd(&tv, &tv2, &ptr->shared_clock);
 
-			printf("OSS adding additional dirty bit time to clock for frame %d at system time %li:%lu\n",
+			printf("Master adding additional dirty bit time to clock for frame %d at system time %li:%lu\n",
 				vp->frame, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
       //remove dirty bit
@@ -534,27 +533,27 @@ static int process_request(){
 
   if(m.op == READ){
     ostat.reads++;
-    printf("OSS has detected Process P%d reading address 0x%d at time %ld:%ld\n",
+    printf("Master has detected Process P%d reading address 0x%d at time %ld:%ld\n",
       usr->id, m.val, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
     rv = page_load(usr, &m);
     switch(rv){
       case -1:  //invalid address
         respond = 1;
-        printf("OSS has denied Process P%d invalid address 0x%d at time %ld:%ld\n",
+        printf("Master has denied Process P%d invalid address 0x%d at time %ld:%ld\n",
               usr->id, m.val, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
         break;
 
       case 0:   //blocked for loading from dist
         respond = 0;
-        printf("OSS has blocked Process P%d reading address 0x%d at time %ld:%ld\n",
+        printf("Master has blocked Process P%d reading address 0x%d at time %ld:%ld\n",
               usr->id, m.val, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
         break;
 
       case 1:   //page is ready
       default:
         respond = 1;
-        printf("OSS has given Process P%d to read address 0x%d at time %ld:%ld\n",
+        printf("Master has given Process P%d to read address 0x%d at time %ld:%ld\n",
             usr->id, m.val, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
         break;
     }
@@ -562,7 +561,7 @@ static int process_request(){
   }else if(m.op == WRITE){
     ostat.writes++;
 
-    printf("OSS has detected Process P%d writing address 0x%d at time %ld:%ld\n",
+    printf("Master has detected Process P%d writing address 0x%d at time %ld:%ld\n",
       usr->id, m.val, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
 
@@ -570,20 +569,20 @@ static int process_request(){
     switch(rv){
       case -1:  //invalid address
         respond = 1;
-        printf("OSS has denied Process P%d invalid address 0x%d at time %ld:%ld\n",
+        printf("Master has denied Process P%d invalid address 0x%d at time %ld:%ld\n",
               usr->id, m.val, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
         break;
 
       case 0:   //blocked for loading from dist
         respond = 0;
-        printf("OSS has blocked Process P%d writing address 0x%d at time %ld:%ld\n",
+        printf("Master has blocked Process P%d writing address 0x%d at time %ld:%ld\n",
               usr->id, m.val, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
         break;
 
       case 1:   //page is ready
       default:
         respond = 1;
-        printf("OSS has given Process P%d to write address 0x%d at time %ld:%ld\n",
+        printf("Master has given Process P%d to write address 0x%d at time %ld:%ld\n",
             usr->id, m.val, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
         //frame gets dirty after write
@@ -595,7 +594,7 @@ static int process_request(){
 
   }else if(m.op == TERMINATING){
 
-    printf("OSS has acknowledged Process P%d is terminating at time %ld:%ld\n",
+    printf("Master has acknowledged Process P%d is terminating at time %ld:%ld\n",
       usr->id, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
     printf("\tReleasing frames: ");
@@ -626,7 +625,7 @@ static int process_request(){
 
   }else{
 
-    printf("OSS has detected invalid message from Process P%d at time %ld:%ld\n",
+    printf("Master has detected invalid message from Process P%d at time %ld:%ld\n",
       usr->id, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
     m.op = CANCEL;
@@ -690,10 +689,10 @@ int main(const int argc, char * const argv[]){
 	while(loop_flag && (e < emax)){
 
     //if we can, we start a new process
-    if( (n < nmax) && (s < smax)  ){
+    if( (noofprocesses < nmax) && (s < smax)  ){
       const pid_t user_pid = exec_user();
       if(user_pid > 0){
-        ++n; ++s;  /* increase count of processes started */
+        ++noofprocesses; ++s;  /* increase count of processes started */
       }
     }
 
