@@ -189,7 +189,7 @@ static int exec_user(){
     default:
       //save process pid
       printf("Master: Started P%d at time %ld:%ld\n",
-        n, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
+        noofprocesses, ptr->shared_clock.tv_sec, ptr->shared_clock.tv_usec);
 
       ptr->user_proc[user_index].pid = pid;
       ptr->user_proc[user_index].id  = noofprocesses;
